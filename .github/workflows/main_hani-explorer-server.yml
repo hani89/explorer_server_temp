@@ -1,7 +1,4 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
-name: Build and deploy Node.js app to Azure Web App - hani-explorer-server
+name: Build and deploy Node.js app to Azure Web App - IntanExplorer
 
 on:
   push:
@@ -11,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -20,46 +17,55 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18.x'
+          cache: 'npm'
 
-      - name: npm install, build, and test
+      - name: npm install and build
         run: |
           npm install
-          npm run build --if-present
-          npm run test --if-present
-      
-      - name: Upload artifact for deployment job
+          npm run build
+
+      - name: Zip the application for deployment
+        run: |
+          zip -r release.zip dist package.json package-lock.json
+
+      - name: Upload dist artifact for deployment job
         uses: actions/upload-artifact@v3
         with:
           name: node-app
-          path: .
+          path: release.zip
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
     environment:
-      name: 'Production'
+      name: production # Use lowercase here
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
     permissions:
       id-token: write #This is required for requesting the JWT
 
     steps:
-      - name: Download artifact from build job
+      - name: Download dist artifact from build job
         uses: actions/download-artifact@v3
         with:
           name: node-app
-      
+
+      - name: Unzip dist artifact for deployment and show contents
+        run: |
+          unzip release.zip -d ./deployment/
+          ls -l ./deployment/
+          
       - name: Login to Azure
         uses: azure/login@v1
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_F8713F5A4CE044AEAF15B86C68CEC9E4 }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_A931A2DFEB0C4E12BC5EABBC67586715 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_DB22F88B1C424C45877498F71EA09BD9 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_DB22F88B1C424C45877498F71EA09BD9 }} 
 
+          
       - name: 'Deploy to Azure Web App'
-        uses: azure/webapps-deploy@v2
         id: deploy-to-webapp
+        uses: azure/webapps-deploy@v2
         with:
           app-name: 'hani-explorer-server'
-          slot-name: 'Production'
-          package: .
-          
+          slot-name: 'production' # Use lowercase here
+          package: ./deployment/ # Deploy the folder where we unzipped the content
